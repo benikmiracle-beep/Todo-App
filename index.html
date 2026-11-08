@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doable – Smart To-Do</title>
+  <link rel="icon" href="images/logo.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="styles/style.css">
+  <script>document.documentElement.dataset.theme = localStorage.getItem("doable-theme") || "light";</script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#dashboard"><img src="images/logo.svg" alt="" width="32" height="32"><span>Doable</span></a>
+      <nav class="nav" aria-label="Main">
+        <a href="#dashboard" data-view="dashboard">
+          <img src="images/dashboard.svg" alt="" width="20" height="20">Dashboard
+        </a>
+        <a href="#tasks" data-view="tasks">
+          <img src="images/tasks.svg" alt="" width="20" height="20">My Tasks
+          <span class="count" id="navCount"></span>
+        </a>
+        <a href="#calendar" data-view="calendar">
+          <img src="images/calendar.svg" alt="" width="20" height="20">Calendar
+        </a>
+        <a href="#assistant" data-view="assistant">
+          <img src="images/assistant.svg" alt="" width="20" height="20">AI Assistant
+        </a>
+        <a href="#settings" data-view="settings">
+          <img src="images/settings.svg" alt="" width="20" height="20">Settings
+        </a>
+      </nav>
+      <div class="side-foot">
+        <div class="avatar" id="avatar">B</div>
+        <div><strong id="sideName">Benik</strong><small>Free plan</small></div>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+        <h1 id="pageTitle">Dashboard</h1>
+        <button class="icon-btn" id="themeBtn" aria-label="Toggle theme"><svg class="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="i-moon" viewBox="0 0 24 24"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg></button>
+      </header>
+
+      <main class="content">
+        <section class="view" id="view-dashboard">
+          <div class="hero">
+            <div>
+              <p class="date" id="todayDate"></p>
+              <h2 id="greeting"></h2>
+              <p class="muted" id="summary"></p>
+            </div>
+            <a class="btn" href="#assistant">Ask the assistant</a>
+          </div>
+          <div class="dashboard-tabs" aria-label="Dashboard sections">
+            <button class="dashboard-tab active" data-dashboard-tab="today" type="button">Today</button>
+            <button class="dashboard-tab" data-dashboard-tab="upcoming" type="button">Upcoming</button>
+            <button class="dashboard-tab" data-dashboard-tab="completed" type="button">Completed</button>
+          </div>
+
+          <div class="dashboard-view">
+            <article class="card progress-card">
+              <h3>Productivity</h3>
+              <div class="ring-wrap">
+                <svg class="ring" viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="52"/><circle class="ring-fg" id="ringFg" cx="60" cy="60" r="52"/></svg>
+                <div class="ring-label"><strong id="ringPct">0%</strong><small>of tasks done</small></div>
+              </div>
+              <div class="week" id="week"></div>
+            </article>
+
+            <article class="card dashboard-panel active" id="todayCard" data-dashboard-panel="today">
+              <div class="card-head"><h3>Today</h3><span class="pill" id="todayCount"></span></div>
+              <ul class="list" id="todayList"></ul>
+            </article>
+
+            <article class="card dashboard-panel" id="upcomingCard" data-dashboard-panel="upcoming">
+              <div class="card-head"><h3>Upcoming</h3><a href="#tasks">View all</a></div>
+              <ul class="list" id="upcomingList"></ul>
+            </article>
+
+            <article class="card dashboard-panel" id="completedCard" data-dashboard-panel="completed">
+              <div class="card-head"><h3>Completed</h3><span class="pill" id="doneCount"></span></div>
+              <ul class="list" id="doneList"></ul>
+            </article>
+          </div>
+
+          <article class="card ai-card">
+            <h3>AI Assistant</h3>
+            <p>Plan your day, break big tasks into steps, or find time for what matters.</p>
+            <a class="btn light" href="#assistant">Open assistant</a>
+          </article>
+        </section>
+
+        <section class="view" id="view-tasks" hidden>
+          <div class="toolbar">
+            <div class="chips" id="filters">
+              <button class="chip active" data-filter="all">All</button>
+              <button class="chip" data-filter="active">Pending</button>
+              <button class="chip" data-filter="done">Completed</button>
+              <button class="chip" data-filter="overdue">Overdue</button>
+            </div>
+            <div class="task-tools">
+              <input type="search" id="taskSearch" class="search-input" placeholder="Search tasks" aria-label="Search tasks">
+              <button class="btn" id="newTaskBtn" type="button">New task</button>
+            </div>
+          </div>
+          <div class="task-summary" id="taskStats">
+            <div class="task-stat"><strong id="statPending">0</strong><span>Pending</span></div>
+            <div class="task-stat"><strong id="statCompleted">0</strong><span>Completed</span></div>
+            <div class="task-stat"><strong id="statOverdue">0</strong><span>Overdue</span></div>
+          </div>
+          <article class="card"><ul class="list big" id="taskList"></ul></article>
+        </section>
+
+        <section class="view" id="view-calendar" hidden>
+          <div class="cal-layout">
+            <article class="card">
+              <div class="card-head">
+                <h3 id="calTitle"></h3>
+                <div class="cal-controls">
+                  <div class="chip-row" aria-label="Calendar views">
+                    <button class="chip calendar-view active" data-calendar-view="day" type="button">Day</button>
+                    <button class="chip calendar-view" data-calendar-view="week" type="button">Week</button>
+                    <button class="chip calendar-view" data-calendar-view="month" type="button">Month</button>
+                  </div>
+                  <div class="cal-nav">
+                    <button class="icon-btn" id="calPrev" aria-label="Previous period"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+                    <button class="icon-btn" id="calNext" aria-label="Next period"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+                    <button class="btn quick-add" id="calendarQuickAdd" type="button">+ Quick add</button>
+                  </div>
+                </div>
+              </div>
+              <p class="calendar-status" id="calendarStatus"></p>
+              <div class="cal-grid" id="calGrid"></div>
+            </article>
+            <article class="card"><div class="card-head"><h3 id="dayTitle"></h3></div><ul class="list" id="dayList"></ul></article>
+          </div>
+        </section>
+
+        <section class="view" id="view-assistant" hidden>
+          <article class="card assistant-shell">
+            <div class="assistant-header">
+              <div>
+                <p class="assistant-kicker">AI personal assistant</p>
+                <h3>Doable Assistant</h3>
+              </div>
+              <span id="assistantStatus" class="assistant-status">Ready</span>
+            </div>
+
+            <div class="chat-log" id="chatLog" aria-live="polite"></div>
+
+            <div class="suggest assistant-suggest">
+              <button class="chip assistant-prompt" type="button" data-prompt="What do I have planned for today?">What do I have planned for today?</button>
+              <button class="chip assistant-prompt" type="button" data-prompt="Move my coding session to 8 PM.">Move my coding session to 8 PM.</button>
+              <button class="chip assistant-prompt" type="button" data-prompt="What should I focus on first?">What should I focus on first?</button>
+            </div>
+
+            <form class="composer" id="assistantForm">
+              <input id="assistantInput" type="text" placeholder="Ask the assistant about your schedule..." aria-label="Message the assistant" autocomplete="off">
+              <button class="btn" type="submit">Send</button>
+            </form>
+          </article>
+        </section>
+
+        <section class="view" id="view-settings" hidden>
+          <article class="card settings">
+            <div class="row"><div><strong>Display name</strong><small>Shown in your dashboard greeting.</small></div><input type="text" id="nameInput" maxlength="24"></div>
+            <div class="row"><div><strong>Theme</strong><small>Choose how Doable looks.</small></div>
+              <div class="chips" id="themeChoice"><button class="chip" data-theme="light">Light</button><button class="chip" data-theme="dark">Dark</button></div></div>
+            <div class="row"><div><strong>Browser notifications</strong><small>Desktop alerts require a browser permission before they can appear.</small></div><button class="btn small" id="requestNotificationPermissionBtn" type="button">Enable</button></div>
+            <div class="row"><div><strong>Reminder lead time</strong><small>How early to alert before a task is due.</small></div><select id="reminderLeadTime"><option value="0">At due time</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></div>
+            <div class="row"><div><strong>Upcoming alerts</strong><small>Notify me when a task is coming up soon.</small></div><label class="switch"><input id="upcomingAlertsToggle" type="checkbox" checked><span></span></label></div>
+            <div class="row"><div><strong>Enable reminders</strong><small>Turn the reminder system on or off.</small></div><label class="switch"><input id="notificationsToggle" type="checkbox" checked><span></span></label></div>
+            <div class="row"><div><strong>Permission status</strong><small id="notificationPermissionStatus">Browser notifications need your permission for desktop alerts.</small></div><span id="notificationStatusBadge" class="status-badge">Ready</span></div>
+
+            <div class="auth-box">
+              <h3>Account</h3>
+              <p>Register or sign in to sync tasks, preferences, and AI conversation history to a secure database.</p>
+              <div class="auth-grid">
+                <input id="authName" type="text" maxlength="40" placeholder="Name" autocomplete="name">
+                <input id="authEmail" type="email" maxlength="120" placeholder="Email" autocomplete="email">
+                <input id="authPassword" type="password" maxlength="128" placeholder="Password" autocomplete="current-password">
+              </div>
+              <div class="auth-actions">
+                <button class="btn small" id="registerBtn" type="button">Register</button>
+                <button class="btn small light" id="loginBtn" type="button">Login</button>
+                <button class="btn small light" id="logoutBtn" type="button">Logout</button>
+              </div>
+              <div id="authStatus" class="auth-status">Not signed in.</div>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div class="modal-backdrop" id="taskModalBackdrop" hidden>
+    <div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
+      <div class="modal-head">
+        <h3 id="taskModalTitle">New task</h3>
+        <button class="icon-btn" id="closeTaskModal" type="button" aria-label="Close task form">×</button>
+      </div>
+
+      <form id="taskForm" class="task-form">
+        <input type="hidden" id="taskId">
+
+        <div class="field field-full">
+          <label for="taskTitle">Title</label>
+          <input id="taskTitle" name="title" type="text" maxlength="120" required placeholder="Task title">
+        </div>
+
+        <div class="field field-full">
+          <label for="taskDescription">Description</label>
+          <textarea id="taskDescription" name="description" rows="3" placeholder="Add details for this task"></textarea>
+        </div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label for="taskCategory">Category</label>
+            <input id="taskCategory" name="category" type="text" maxlength="40" placeholder="General">
+          </div>
+
+          <div class="field">
+            <label for="taskPriority">Priority</label>
+            <select id="taskPriority" name="priority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="taskDueDate">Deadline</label>
+            <input id="taskDueDate" name="dueDate" type="date">
+          </div>
+
+          <div class="field">
+            <label for="taskDueTime">Time</label>
+            <input id="taskDueTime" name="dueTime" type="time">
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <label class="checkbox-row">
+            <input id="taskDone" name="done" type="checkbox">
+            <span>Mark as completed</span>
+          </label>
+
+          <div class="action-buttons">
+            <button class="btn light" id="cancelTaskBtn" type="button">Cancel</button>
+            <button class="btn" type="submit">Save task</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="script/script.js"></script>
+</body>
+</html>
