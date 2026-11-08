@@ -25,8 +25,15 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET || "change-this-in-production";
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022";
 const MAX_CHAT_MESSAGE_LENGTH = 2000;
-const ALLOWED_ORIGINS = ["http://127.0.0.1:5500"];
+const ALLOWED_ORIGINS = Array.from(new Set([
+  process.env.ALLOWED_ORIGIN,
+  "http://127.0.0.1:5500",
+  "http://localhost:5500",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+].filter(Boolean)));
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -438,9 +445,9 @@ app.post("/api/chat", async (req, res) => {
 
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-5-5",
+      model: ANTHROPIC_MODEL,
       max_tokens: 300,
-      system: "You are Doable's task assistant. Help the user plan their day using the tasks provided. Be brief.",
+      system: "You are Doable's task assistant. Help the user plan their day using the tasks provided. Be brief and use the supplied task list as source of truth.",
       messages: [
         {
           role: "user",

@@ -11,22 +11,7 @@ const dayOffset = (n) => {
   return d;
 };
 
-const defaultTasks = [
-  { id: "task-1", title: "Review design handoff", description: "Check the latest mockups and confirm the handoff notes.", category: "Work", priority: "high", dueDate: isoDate(dayOffset(0)), dueTime: "10:00", done: false },
-  { id: "task-2", title: "Reply to client emails", description: "Send follow-ups on the onboarding proposal.", category: "Work", priority: "medium", dueDate: isoDate(dayOffset(0)), dueTime: "12:30", done: true },
-  { id: "task-3", title: "Prepare weekly report", description: "Summarize tasks, metrics, and blockers from the week.", category: "Work", priority: "medium", dueDate: isoDate(dayOffset(0)), dueTime: "15:00", done: false },
-  { id: "task-4", title: "Gym session", description: "30-minute strength session after work.", category: "Health", priority: "low", dueDate: isoDate(dayOffset(0)), dueTime: "18:00", done: false },
-  { id: "task-5", title: "Finish onboarding flow copy", description: "Tighten the welcome copy before sign-off.", category: "Work", priority: "high", dueDate: isoDate(dayOffset(1)), dueTime: "11:00", done: false },
-  { id: "task-6", title: "Book dentist appointment", description: "Confirm a time with the dental clinic.", category: "Personal", priority: "low", dueDate: isoDate(dayOffset(2)), dueTime: "09:00", done: false },
-  { id: "task-7", title: "Pay internet bill", description: "Settle the monthly internet payment online.", category: "Finance", priority: "high", dueDate: isoDate(dayOffset(3)), dueTime: "14:00", done: false },
-  { id: "task-8", title: "Read two chapters of JS book", description: "Finish the chapter on closures and async patterns.", category: "Learning", priority: "medium", dueDate: isoDate(dayOffset(4)), dueTime: "20:00", done: false },
-  { id: "task-9", title: "Plan sprint backlog", description: "Group the biggest wins and dependencies for the next sprint.", category: "Work", priority: "medium", dueDate: isoDate(dayOffset(6)), dueTime: "10:30", done: false },
-  { id: "task-10", title: "Back up project files", description: "Upload updated assets to cloud storage.", category: "Work", priority: "low", dueDate: isoDate(dayOffset(-1)), dueTime: "17:00", done: true },
-  { id: "task-11", title: "Send invoice to client", description: "Email the latest invoice and payment reference.", category: "Finance", priority: "high", dueDate: isoDate(dayOffset(-2)), dueTime: "16:00", done: true },
-  { id: "task-12", title: "Grocery shopping", description: "Buy ingredients for the week.", category: "Personal", priority: "low", dueDate: isoDate(dayOffset(-3)), dueTime: "18:30", done: true },
-  { id: "task-13", title: "Call mum", description: "Check in and catch up on family plans.", category: "Personal", priority: "low", dueDate: isoDate(dayOffset(8)), dueTime: "19:00", done: false },
-  { id: "task-14", title: "Submit assignment", description: "Upload the final assignment before the deadline.", category: "Learning", priority: "high", dueDate: isoDate(dayOffset(10)), dueTime: "23:59", done: false },
-];
+const defaultTasks = [];
 
 const state = {
   view: "dashboard",
@@ -52,7 +37,7 @@ function isoDate(date) {
 function loadTasks() {
   try {
     const cached = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-    if (Array.isArray(cached) && cached.length) {
+    if (Array.isArray(cached)) {
       return cached;
     }
   } catch (error) {
@@ -1090,16 +1075,18 @@ async function sendAssistantMessage(message) {
 
   if (!trimmed) return;
 
-  // Keep the chat history readable and show the user message immediately.
   appendAssistantMessage("me", trimmed);
   if (input) input.value = "";
   if (status) status.textContent = "Typing...";
 
   try {
-    // Send the message to the local Express backend, which proxies to Anthropic.
-    const response = await fetch("/api/chat", {
+    const requestPath = getAuthToken() ? "/api/assistant/chat" : "/api/chat";
+    const response = await fetch(requestPath, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+      },
       body: JSON.stringify({
         message: trimmed,
         tasks: tasks.map((task) => ({ ...task })),
@@ -1108,13 +1095,30 @@ async function sendAssistantMessage(message) {
 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload.error || "The assistant could not answer right now.");
+      throw new Error(payload.error || payload.message || "The assistant could not answer right now.");
+    }
+
+    if (Array.isArray(payload.tasks) && payload.tasks.length) {
+      tasks = payload.tasks.map((task) => ({ ...task }));
+      saveTasks();
+      renderAll();
+    } else if (requestPath === "/api/chat" && !getAuthToken()) {
+      const fallback = buildAssistantFallback(trimmed);
+      tasks = fallback.tasks.map((task) => ({ ...task }));
+      saveTasks();
+      renderAll();
+      appendAssistantMessage("assistant", fallback.reply || payload.reply || "I am ready to help.");
+      return;
     }
 
     appendAssistantMessage("assistant", payload.reply || "I am ready to help.");
   } catch (error) {
     console.error("Assistant request failed:", error);
-    appendAssistantMessage("assistant", "I could not reach the assistant right now. Please try again in a moment.");
+    const fallback = buildAssistantFallback(trimmed);
+    tasks = fallback.tasks.map((task) => ({ ...task }));
+    saveTasks();
+    renderAll();
+    appendAssistantMessage("assistant", fallback.reply || "I could not reach the assistant right now. Please try again in a moment.");
   } finally {
     if (status) status.textContent = "Ready";
   }
