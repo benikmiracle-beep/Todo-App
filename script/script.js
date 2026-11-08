@@ -680,6 +680,47 @@ function postponeTask(taskId, minutes = 30) {
   renderAll();
 }
 
+function buildTimelineBlocks(taskList) {
+  const items = taskList
+    .map((task) => {
+      const startMinutes = getTaskMinutes(task.dueTime || "09:00");
+      const durationMinutes = Math.max(30, Number(task.durationMinutes) || 60);
+      return {
+        task,
+        startMinutes,
+        endMinutes: startMinutes + durationMinutes,
+      };
+    })
+    .sort((a, b) => a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes);
+
+  const columns = [];
+  const placed = items.map((item) => {
+    let columnIndex = 0;
+    while (columnIndex < columns.length && columns[columnIndex] > item.startMinutes) {
+      columnIndex += 1;
+    }
+    columns[columnIndex] = item.endMinutes;
+    return { ...item, columnIndex };
+  });
+
+  const maxColumns = Math.max(1, ...placed.map((item) => item.columnIndex + 1));
+
+  return placed.map((item) => {
+    const top = (item.startMinutes / 1440) * 100;
+    const height = Math.max(((item.endMinutes - item.startMinutes) / 1440) * 100, 7);
+    const left = (item.columnIndex / maxColumns) * 100 + 1;
+    const width = 100 / maxColumns - 2;
+
+    return {
+      task: item.task,
+      top,
+      height,
+      left,
+      width,
+    };
+  });
+}
+
 function renderCalendar() {
   const viewDates = getCalendarViewDates();
   const year = state.month.getFullYear();
@@ -733,73 +774,80 @@ function renderCalendar() {
       `;
     }).join("");
   } else if (state.calendarView === "week") {
-    $("#calGrid").className = "cal-grid week-view";
-    $("#calGrid").style.gridTemplateColumns = "repeat(7, minmax(0, 1fr))";
-    $("#calGrid").innerHTML = viewDates.map((currentDate) => {
-      const dateTasks = tasks.filter((task) => task.dueDate && sameDay(task.dueDate, currentDate)).sort(byDue);
-      const selectedClass = sameDay(currentDate, state.selected) ? "sel" : "";
+    const hourLabels = Array.from({ length: 24 }, (_, hour) => {
+      const top = (hour / 24) * 100;
+      return `<div class="hour-label" style="top:${top}%">${String(hour).padStart(2, "0")}:00</div>`;
+    }).join("");
 
-      return `
-        <div class="week-column ${selectedClass}">
-          <button class="week-day-head" type="button" data-date="${isoDate(currentDate)}">
-            <span>${formatDate(currentDate, { weekday: "short" })}</span>
-            <strong>${currentDate.getDate()}</strong>
-          </button>
-          <div class="week-day-tasks">
-            ${dateTasks.length ? dateTasks.map((task) => `
-              <div class="week-task ${task.done ? "done" : ""}">
-                <span class="mini-dot dot-${task.priority}"></span>
-                <div>
+    $("#calGrid").className = "cal-grid week-view";
+    $("#calGrid").style.gridTemplateColumns = "1fr";
+    $("#calGrid").innerHTML = `
+      <div class="week-shell">
+        <div class="week-hours">${hourLabels}</div>
+        <div class="week-days-scroll">
+          <div class="week-grid">
+            ${viewDates.map((currentDate) => {
+              const dateTasks = tasks.filter((task) => task.dueDate && sameDay(task.dueDate, currentDate)).sort(byDue);
+              const blocks = buildTimelineBlocks(dateTasks).map(({ task, top, height }) => `
+                <div class="week-task-block ${task.priority} ${task.done ? "done" : ""}" style="top:${top}%;height:${Math.max(height, 7)}%">
                   <strong>${escapeHtml(task.title)}</strong>
                   <small>${task.dueTime || "Any time"}</small>
                 </div>
-              </div>
-            `).join("") : '<div class="week-empty">No tasks</div>'}
+              `).join("");
+              const nowLine = sameDay(currentDate, new Date())
+                ? `<div class="week-now-line" style="top:${((new Date().getHours() * 60 + new Date().getMinutes()) / 1440) * 100}%"></div>`
+                : "";
+
+              return `
+                <div class="week-day-column ${sameDay(currentDate, new Date()) ? "today" : ""}">
+                  <div class="week-header">
+                    <span>${formatDate(currentDate, { weekday: "short" })}</span>
+                    <span class="week-day-header-number">${currentDate.getDate()}</span>
+                  </div>
+                  <div class="week-day-timeline">
+                    ${nowLine}
+                    ${blocks || '<div class="week-empty">No tasks</div>'}
+                  </div>
+                </div>
+              `;
+            }).join("")}
           </div>
+        </div>
+      </div>
+    `;
+  } else {
+    const hourLabels = Array.from({ length: 24 }, (_, hour) => {
+      const top = (hour / 24) * 100;
+      return `<div class="hour-label" style="top:${top}%">${String(hour).padStart(2, "0")}:00</div>`;
+    }).join("");
+
+    const blockMarkup = buildTimelineBlocks(dayTasks).map(({ task, top, height, left, width }) => {
+      const label = task.dueTime || "All day";
+      return `
+        <div class="timeline-block ${task.priority} ${task.done ? "done" : ""}" style="top:${top}%;height:${Math.max(height, 7)}%;left:${left}%;width:${Math.max(width, 20)}%">
+          <strong>${escapeHtml(task.title)}</strong>
+          <span class="time-text">${label}</span>
+          <span class="block-meta"><span class="priority-chip">${task.priority}</span></span>
         </div>
       `;
     }).join("");
-  } else {
+
+    const now = sameDay(state.selected, new Date())
+      ? `<div class="timeline-now" style="top:${((new Date().getHours() * 60 + new Date().getMinutes()) / 1440) * 100}%"></div>`
+      : "";
+
     $("#calGrid").className = "cal-grid day-view";
     $("#calGrid").style.gridTemplateColumns = "1fr";
-
-    if (!dayTasks.length) {
-      $("#calGrid").innerHTML = `<div class="timeline-empty">No scheduled tasks for this day.</div>`;
-    } else {
-      const timelineMarkup = dayTasks.map((task) => {
-        const minutes = getTaskMinutes(task.dueTime || "09:00");
-        const top = Math.min(Math.max((minutes / 1440) * 100, 4), 96);
-        const taskConflicts = getScheduleConflicts(task);
-        const alt = suggestAlternativeTime(task);
-        const note = taskConflicts.length
-          ? `<span class="timeline-note conflict">Conflict</span>`
-          : alt && (taskConflicts.length || isTaskOverdue(task))
-            ? `<span class="timeline-note suggestion">Suggested ${alt}</span>`
-            : "";
-
-        return `
-          <div class="timeline-row" style="top:${top}%">
-            <div class="timeline-time">${task.dueTime || "All day"}</div>
-            <div class="timeline-card ${task.done ? "done" : ""}">
-              <div class="timeline-card-head">
-                <strong>${escapeHtml(task.title)}</strong>
-                <span class="priority-badge priority-${task.priority}">${task.priority}</span>
-              </div>
-              <small>${escapeHtml(task.description || "No description")}</small>
-              ${note}
-            </div>
+    $("#calGrid").innerHTML = dayTasks.length
+      ? `
+        <div class="day-view-scroll">
+          <div class="day-timeline-shell">
+            <div class="day-hours">${hourLabels}</div>
+            <div class="day-canvas">${now}${blockMarkup}</div>
           </div>
-        `;
-      }).join("");
-
-      const hourlyLabels = Array.from({ length: 24 }, (_, hour) => `<div class="hour-line"><span>${String(hour).padStart(2, "0")}:00</span></div>`).join("");
-      $("#calGrid").innerHTML = `
-        <div class="timeline-shell">
-          <div class="timeline-hours">${hourlyLabels}</div>
-          <div class="timeline-events">${timelineMarkup}</div>
         </div>
-      `;
-    }
+      `
+      : `<div class="timeline-empty">No scheduled tasks for this day.</div>`;
   }
 
   $("#dayList").innerHTML = dayTasks.length
@@ -1042,45 +1090,31 @@ async function sendAssistantMessage(message) {
 
   if (!trimmed) return;
 
+  // Keep the chat history readable and show the user message immediately.
   appendAssistantMessage("me", trimmed);
   if (input) input.value = "";
-  if (status) status.textContent = "Thinking...";
+  if (status) status.textContent = "Typing...";
 
   try {
-    const response = await fetch("/api/assistant/chat", {
+    // Send the message to the local Express backend, which proxies to Anthropic.
+    const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: trimmed,
         tasks: tasks.map((task) => ({ ...task })),
-        userName: state.name,
       }),
     });
 
+    const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(`Request failed: ${response.status}`);
-    }
-
-    const payload = await response.json();
-
-    if (Array.isArray(payload.tasks)) {
-      tasks = payload.tasks.map((task) => ({ ...task }));
-      saveTasks();
-      renderAll();
+      throw new Error(payload.error || "The assistant could not answer right now.");
     }
 
     appendAssistantMessage("assistant", payload.reply || "I am ready to help.");
   } catch (error) {
-    console.warn("Assistant API failed, using local fallback.", error);
-    const fallback = buildAssistantFallback(trimmed);
-
-    if (Array.isArray(fallback.tasks)) {
-      tasks = fallback.tasks.map((task) => ({ ...task }));
-      saveTasks();
-      renderAll();
-    }
-
-    appendAssistantMessage("assistant", fallback.reply || "I could not process that request.");
+    console.error("Assistant request failed:", error);
+    appendAssistantMessage("assistant", "I could not reach the assistant right now. Please try again in a moment.");
   } finally {
     if (status) status.textContent = "Ready";
   }
@@ -1108,10 +1142,24 @@ const closeMenu = () => {
   $("#scrim").classList.remove("show");
 };
 
+function syncThemeControls() {
+  const currentTheme = document.documentElement.dataset.theme || "light";
+  $$("#themeChoice .chip").forEach((chip) => chip.classList.toggle("active", chip.dataset.theme === currentTheme));
+
+  const themeBtn = document.getElementById("themeBtn");
+  if (themeBtn) {
+    const isDark = currentTheme === "dark";
+    themeBtn.setAttribute("aria-pressed", String(isDark));
+    themeBtn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeBtn.title = isDark ? "Switch to light mode" : "Switch to dark mode";
+  }
+}
+
 function setTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  localStorage.setItem("doable-theme", theme);
-  $$("#themeChoice .chip").forEach((chip) => chip.classList.toggle("active", chip.dataset.theme === theme));
+  const nextTheme = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = nextTheme;
+  localStorage.setItem("doable-theme", nextTheme);
+  syncThemeControls();
 }
 
 function setName(name) {
@@ -1377,6 +1425,7 @@ if (persistedUser) {
 
 $("#nameInput").value = state.name;
 applyReminderSettingValues();
+syncThemeControls();
 setTheme(document.documentElement.dataset.theme);
 setName(state.name);
 renderAssistantMessages();

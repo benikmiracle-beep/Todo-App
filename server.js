@@ -5,6 +5,7 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const Anthropic = require("@anthropic-ai/sdk");
 const { randomUUID } = require("crypto");
 require("dotenv").config();
 
@@ -23,11 +24,25 @@ const {
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET || "change-this-in-production";
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+const MAX_CHAT_MESSAGE_LENGTH = 2000;
+const ALLOWED_ORIGINS = ["http://127.0.0.1:5500"];
+const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error("CORS blocked for this origin."));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: "1mb" }));
 app.use(rateLimit({ windowMs: 60 * 1000, max: 120 }));
+app.use("/api/chat", rateLimit({ windowMs: 60 * 1000, max: 20 }));
 
 function isoDate(date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -403,6 +418,46 @@ app.post("/api/assistant/chat", authMiddleware, async (req, res) => {
   addAiMessage(req.user.id, "assistant", fallback.reply);
   replaceTasksForUser(req.user.id, fallback.tasks || tasks);
   return res.json({ reply: fallback.reply, tasks: fallback.tasks || tasks });
+});
+
+app.post("/api/chat", async (req, res) => {
+  const message = String(req.body?.message || "").trim();
+  const tasks = Array.isArray(req.body?.tasks) ? req.body.tasks : [];
+
+  if (!message) {
+    return res.status(400).json({ error: "Message is required." });
+  }
+
+  if (message.length > MAX_CHAT_MESSAGE_LENGTH) {
+    return res.status(400).json({ error: "Message is too long." });
+  }
+
+  if (!ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: "Anthropic API key is not configured on the server." });
+  }
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-5-5",
+      max_tokens: 300,
+      system: "You are Doable's task assistant. Help the user plan their day using the tasks provided. Be brief.",
+      messages: [
+        {
+          role: "user",
+          content: JSON.stringify({
+            message,
+            tasks,
+          }),
+        },
+      ],
+    });
+
+    const reply = response.content?.[0]?.text || "I am ready to help.";
+    return res.json({ reply });
+  } catch (error) {
+    console.error("Anthropic request failed:", error);
+    return res.status(500).json({ error: "The assistant could not answer right now." });
+  }
 });
 
 app.use(express.static(__dirname));
